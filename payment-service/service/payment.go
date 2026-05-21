@@ -1,13 +1,21 @@
 package service
 
-import "github.com/pawlowiczf/go-observability/payment-service/config"
+import (
+	"context"
+
+	"github.com/pawlowiczf/go-observability/payment-service/model"
+)
 
 type Service struct {
-	cfg *config.Config
 }
 
-func New(cfg *config.Config) *Service {
-	return &Service{
-		cfg: cfg,
-	}
+func New() *Service {
+	return &Service{}
+}
+
+func (svc *Service) Charge(ctx context.Context, req model.ChargePaymentRequest) (model.ChargePaymentResponse, error) {
+	return model.ChargePaymentResponse{
+		Charged:       true,
+		TransactionID: "txn-stub-0001",
+	}, nil
 }

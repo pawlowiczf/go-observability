@@ -1,0 +1,53 @@
+name: go-observability
+
+services:
+  inventory-service:
+    build:
+      context: .
+      dockerfile: inventory-service/Dockerfile
+    container_name: inventory-service
+    ports:
+      - "8001:8080"
+    environment:
+      - SERVICE_NAME=inventory-service
+      - SERVICE_PORT=8080
+      - OTEL_ENDPOINT=otel-collector:4317
+    networks:
+      - observability
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: payment-service
+    ports:
+      - "8003:8080"
+    environment:
+      - SERVICE_NAME=payment-service
+      - SERVICE_PORT=8080
+      - OTEL_ENDPOINT=otel-collector:4317
+    networks:
+      - observability
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: order-service
+    ports:
+      - "8002:8080"
+    environment:
+      - SERVICE_NAME=order-service
+      - SERVICE_PORT=8080
+      - OTEL_ENDPOINT=otel-collector:4317
+      - INVENTORY_BASE_URL=http://inventory-service:8080
+      - PAYMENT_BASE_URL=http://payment-service:8080
+    depends_on:
+      - inventory-service
+      - payment-service
+    networks:
+      - observability
+
+networks:
+  observability:
+    driver: bridge
