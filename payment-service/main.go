@@ -15,6 +15,9 @@ import (
 	"github.com/pawlowiczf/go-observability/payment-service/handler"
 	"github.com/pawlowiczf/go-observability/payment-service/service"
 	"github.com/pawlowiczf/go-observability/payment-service/telemetry"
+	slogmulti "github.com/samber/slog-multi"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,13 +50,18 @@ func run() int {
 		}
 	}()
 
+	slog.SetDefault(slog.New(slogmulti.Fanout(
+		slog.NewJSONHandler(os.Stdout, nil),
+		otelslog.NewHandler(cfg.ServiceName),
+	)))
+
 	svc := service.New()
 	mux := http.NewServeMux()
 	h := handler.New(svc)
 	h.Register(mux)
 	srv := &http.Server{
 		Addr:    ":" + cfg.ServicePort,
-		Handler: mux,
+		Handler: otelhttp.NewHandler(mux, cfg.ServiceName),
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)

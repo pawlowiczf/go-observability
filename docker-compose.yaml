@@ -97,6 +97,14 @@ services:
     networks:
       - observability
 
+  loki:
+    image: grafana/loki:latest
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    networks:
+      - observability
+
   prometheus:
     image: prom/prometheus:latest
     ports:

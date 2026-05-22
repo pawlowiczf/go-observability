@@ -11,10 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pawlowiczf/go-observability/order-service/client"
 	"github.com/pawlowiczf/go-observability/order-service/config"
 	"github.com/pawlowiczf/go-observability/order-service/handler"
 	"github.com/pawlowiczf/go-observability/order-service/service"
 	"github.com/pawlowiczf/go-observability/order-service/telemetry"
+	slogmulti "github.com/samber/slog-multi"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,13 +51,23 @@ func run() int {
 		}
 	}()
 
-	svc := service.New()
+	slog.SetDefault(slog.New(slogmulti.Fanout(
+		slog.NewJSONHandler(os.Stdout, nil),
+		otelslog.NewHandler(cfg.ServiceName),
+	)))
+
+	httpClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
+	inventoryClient := client.NewInventory(httpClient, cfg.InventoryBaseURL)
+	paymentClient := client.NewPayment(httpClient, cfg.PaymentBaseURL)
+	svc := service.New(inventoryClient, paymentClient)
 	mux := http.NewServeMux()
 	h := handler.New(svc)
 	h.Register(mux)
 	srv := &http.Server{
 		Addr:    ":" + cfg.ServicePort,
-		Handler: mux,
+		Handler: otelhttp.NewHandler(mux, cfg.ServiceName),
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
