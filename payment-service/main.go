@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +14,15 @@ import (
 	"github.com/pawlowiczf/go-observability/payment-service/config"
 	"github.com/pawlowiczf/go-observability/payment-service/handler"
 	"github.com/pawlowiczf/go-observability/payment-service/service"
+	"github.com/pawlowiczf/go-observability/payment-service/telemetry"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -23,34 +31,50 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		slog.Error("could not load config", slog.Any("error", err))
-		os.Exit(1)
+		return 1
 	}
 
+	shutdown, err := telemetry.Setup(ctx, cfg.ServiceName, cfg.OTELEndpoint)
+	if err != nil {
+		slog.Error("could not setup telemetry", slog.Any("error", err))
+		return 1
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdown(shutdownCtx); err != nil {
+			slog.Error("telemetry shutdown error", slog.Any("error", err))
+		}
+	}()
+
 	svc := service.New()
-
 	mux := http.NewServeMux()
-
 	h := handler.New(svc)
 	h.Register(mux)
-
 	srv := &http.Server{
 		Addr:    ":" + cfg.ServicePort,
 		Handler: mux,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server failed", slog.Any("error", err))
-			os.Exit(1)
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		slog.Info("server started", slog.String("addr", srv.Addr))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("http server: %w", err)
 		}
-	}()
-	slog.Info("server started", slog.String("addr", srv.Addr))
+		return nil
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
+	})
 
-	<-ctx.Done()
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("shutdown error", slog.Any("error", err))
+	if err := g.Wait(); err != nil {
+		slog.Error("shutdown with error", slog.Any("error", err))
+		return 1
 	}
+	return 0
 }
