@@ -23,6 +23,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
+	slog.InfoContext(r.Context(), "request received",
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path),
+	)
+
 	var req model.ChargePaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
