@@ -83,8 +83,8 @@ services:
       - ./otel/collector-config.yaml:/etc/otel/config.yaml
     command: ["--config=/etc/otel/config.yaml"]
     ports:
-      - "4318:4318"   # OTLP HTTP
-      - "8889:8889"   # Prometheus scrape endpoint
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus scrape endpoint
     networks:
       - observability
 
@@ -93,7 +93,7 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"   # Jaeger UI
+      - "16686:16686" # Jaeger UI
     networks:
       - observability
 
@@ -109,6 +109,27 @@ services:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
     networks:
       - observability
 
