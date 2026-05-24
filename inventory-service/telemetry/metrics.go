@@ -3,9 +3,10 @@ package telemetry
 import (
 	"context"
 	"net/http"
-	"runtime"
+	"os"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/process"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -15,8 +16,8 @@ var (
 	reserveRequestCounter    metric.Int64Counter
 	reserveErrorCounter      metric.Int64Counter
 	reserveDurationHistogram metric.Float64Histogram
-	processMemoryGauge       metric.Int64ObservableGauge
-	processorGoroutineGauge  metric.Int64ObservableGauge
+	processCPUPercentGauge   metric.Float64ObservableGauge
+	currentProcess           *process.Process
 	metricsInitialized       bool
 )
 
@@ -48,29 +49,28 @@ func InitMetrics(serviceName string) error {
 		return err
 	}
 
-	processMemoryGauge, err = meter.Int64ObservableGauge(
-		"process_memory_bytes",
-		metric.WithDescription("Process memory usage in bytes"),
+	processCPUPercentGauge, err = meter.Float64ObservableGauge(
+		"process_cpu_percent",
+		metric.WithDescription("CPU usage percentage of the process"),
 	)
 	if err != nil {
 		return err
 	}
 
-	processorGoroutineGauge, err = meter.Int64ObservableGauge(
-		"process_goroutines",
-		metric.WithDescription("Number of goroutines"),
-	)
+	p, err := process.NewProcess(int32(os.Getpid()))
 	if err != nil {
 		return err
 	}
+	currentProcess = p
 
 	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		var mem runtime.MemStats
-		runtime.ReadMemStats(&mem)
-		observer.ObserveInt64(processMemoryGauge, int64(mem.Alloc))
-		observer.ObserveInt64(processorGoroutineGauge, int64(runtime.NumGoroutine()))
+		if currentProcess != nil {
+			if cpuPercent, err := currentProcess.Percent(100 * time.Millisecond); err == nil {
+				observer.ObserveFloat64(processCPUPercentGauge, cpuPercent)
+			}
+		}
 		return nil
-	}, processMemoryGauge, processorGoroutineGauge)
+	}, processCPUPercentGauge)
 	if err != nil {
 		return err
 	}
@@ -97,6 +97,7 @@ func RecordReserveRequest(ctx context.Context, duration time.Duration, success b
 
 	reserveRequestCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 	reserveDurationHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+
 	if !success {
 		reserveErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}

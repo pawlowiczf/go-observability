@@ -8,3 +8,8 @@ type ReserveProductRequest struct {
 type ReserveProductResponse struct {
 	Reserved bool `json:"reserved"`
 }
+
+type BurnCPUResponse struct {
+	Burned   bool    `json:"burned"`
+	Duration float64 `json:"duration_seconds"`
+}
