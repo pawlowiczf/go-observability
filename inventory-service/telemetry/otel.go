@@ -32,7 +32,32 @@ func Setup(ctx context.Context, serviceName, collectorURL string) (shutdown func
         otlptracehttp.WithInsecure(),
     }
 
-    // --- Traces ---
+    tp, err := setupTraces(ctx, res, opts)
+    if err != nil {
+        return nil, err
+    }
+
+    mp, err := setupMetrics(ctx, res, collectorURL, opts)
+    if err != nil {
+        return nil, err
+    }
+
+    lp, err := setupLogs(ctx, res, collectorURL, opts)
+    if err != nil {
+        return nil, err
+    }
+
+    shutdown = func(ctx context.Context) error {
+        return errors.Join(
+            tp.Shutdown(ctx),
+            mp.Shutdown(ctx),
+            lp.Shutdown(ctx),
+        )
+    }
+    return shutdown, nil
+}
+
+func setupTraces(ctx context.Context, res *resource.Resource, opts []otlptracehttp.Option) (*sdktrace.TracerProvider, error) {
     traceExp, err := otlptracehttp.New(ctx, opts...)
     if err != nil {
         return nil, fmt.Errorf("trace exporter: %w", err)
@@ -43,8 +68,10 @@ func Setup(ctx context.Context, serviceName, collectorURL string) (shutdown func
     )
     otel.SetTracerProvider(tp)
     otel.SetTextMapPropagator(propagation.TraceContext{})
+    return tp, nil
+}
 
-    // --- Metrics ---
+func setupMetrics(ctx context.Context, res *resource.Resource, collectorURL string, opts []otlptracehttp.Option) (*sdkmetric.MeterProvider, error) {
     metricExp, err := otlpmetrichttp.New(ctx,
         otlpmetrichttp.WithEndpoint(collectorURL),
         otlpmetrichttp.WithInsecure(),
@@ -59,8 +86,10 @@ func Setup(ctx context.Context, serviceName, collectorURL string) (shutdown func
         sdkmetric.WithResource(res),
     )
     otel.SetMeterProvider(mp)
+    return mp, nil
+}
 
-    // --- Logs ---
+func setupLogs(ctx context.Context, res *resource.Resource, collectorURL string, opts []otlptracehttp.Option) (*sdklog.LoggerProvider, error) {
     logExp, err := otlploghttp.New(ctx,
         otlploghttp.WithEndpoint(collectorURL),
         otlploghttp.WithInsecure(),
@@ -73,13 +102,5 @@ func Setup(ctx context.Context, serviceName, collectorURL string) (shutdown func
         sdklog.WithResource(res),
     )
     global.SetLoggerProvider(lp)
-
-    shutdown = func(ctx context.Context) error {
-        return errors.Join(
-            tp.Shutdown(ctx),
-            mp.Shutdown(ctx),
-            lp.Shutdown(ctx),
-        )
-    }
-    return shutdown, nil
+    return lp, nil
 }
