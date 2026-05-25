@@ -13,38 +13,38 @@ import (
 )
 
 var (
-	reserveRequestCounter    metric.Int64Counter
-	reserveErrorCounter      metric.Int64Counter
-	reserveDurationHistogram metric.Float64Histogram
-	processCPUPercentGauge   metric.Float64ObservableGauge
-	processMemoryRSSGauge    metric.Int64ObservableGauge
-	currentProcess           *process.Process
-	metricsInitialized       bool
+	checkoutRequestCounter    metric.Int64Counter
+	checkoutErrorCounter      metric.Int64Counter
+	checkoutDurationHistogram metric.Float64Histogram
+	processCPUPercentGauge    metric.Float64ObservableGauge
+	processMemoryRSSGauge     metric.Int64ObservableGauge
+	currentProcess            *process.Process
+	metricsInitialized        bool
 )
 
 func InitMetrics(serviceName string) error {
 	meter := otel.Meter(serviceName)
 	var err error
 
-	reserveRequestCounter, err = meter.Int64Counter(
-		"inventory_reserve_requests_total",
-		metric.WithDescription("Number of inventory reserve requests"),
+	checkoutRequestCounter, err = meter.Int64Counter(
+		"order_checkout_requests_total",
+		metric.WithDescription("Number of order checkout requests"),
 	)
 	if err != nil {
 		return err
 	}
 
-	reserveErrorCounter, err = meter.Int64Counter(
-		"inventory_reserve_errors_total",
-		metric.WithDescription("Number of failed inventory reserve requests"),
+	checkoutErrorCounter, err = meter.Int64Counter(
+		"order_checkout_errors_total",
+		metric.WithDescription("Number of failed order checkout requests"),
 	)
 	if err != nil {
 		return err
 	}
 
-	reserveDurationHistogram, err = meter.Float64Histogram(
-		"inventory_reserve_duration_seconds",
-		metric.WithDescription("Duration of inventory reserve handler in seconds"),
+	checkoutDurationHistogram, err = meter.Float64Histogram(
+		"order_checkout_duration_seconds",
+		metric.WithDescription("Duration of order checkout handler in seconds"),
 	)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func InitMetrics(serviceName string) error {
 	return nil
 }
 
-func RecordReserveRequest(ctx context.Context, duration time.Duration, success bool) {
+func RecordCheckoutRequest(ctx context.Context, duration time.Duration, success bool) {
 	if !metricsInitialized {
 		return
 	}
@@ -105,14 +105,14 @@ func RecordReserveRequest(ctx context.Context, duration time.Duration, success b
 
 	attrs := []attribute.KeyValue{
 		attribute.String("http.method", http.MethodPost),
-		attribute.String("http.target", "/reserve"),
+		attribute.String("http.target", "/checkout"),
 		attribute.String("status", status),
 	}
 
-	reserveRequestCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-	reserveDurationHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+	checkoutRequestCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	checkoutDurationHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 
 	if !success {
-		reserveErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+		checkoutErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
 }
