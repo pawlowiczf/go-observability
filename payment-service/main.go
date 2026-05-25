@@ -75,6 +75,7 @@ func run() int {
 	})
 	g.Go(func() error {
 		<-gCtx.Done()
+		h.NotReady()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)

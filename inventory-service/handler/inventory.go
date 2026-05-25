@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/pawlowiczf/go-observability/inventory-service/model"
@@ -14,17 +15,21 @@ import (
 )
 
 type Handler struct {
-	svc *service.Service
+	svc   *service.Service
+	ready atomic.Bool
 }
 
 func New(svc *service.Service) *Handler {
-	return &Handler{svc: svc}
+	h := &Handler{svc: svc}
+	h.ready.Store(true)
+	return h
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /reserve", h.Reserve)
-	mux.HandleFunc("GET /healthz", h.Health)
 	mux.HandleFunc("POST /burncpu", h.BurnCPU)
+	mux.HandleFunc("GET /healthz", h.Health)
+	mux.HandleFunc("GET /readyz", h.Ready)
 }
 
 func (h *Handler) Reserve(w http.ResponseWriter, r *http.Request) {
@@ -82,4 +87,16 @@ func (h *Handler) BurnCPU(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) Ready(w http.ResponseWriter, _ *http.Request) {
+	if !h.ready.Load() {
+		http.Error(w, "draining", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) NotReady() {
+	h.ready.Store(false)
 }
