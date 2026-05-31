@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: inventory-service
+    newName: inventory-service
+    newTag: local
+  - name: payment-service
+    newName: payment-service
+    newTag: local
+  - name: order-service
+    newName: order-service
+    newTag: local
+
+patches:
+  - path: patches/grafana-nodeport.yaml
+  - path: patches/jaeger-nodeport.yaml
+  - path: patches/inventory-service-nodeport.yaml
+  - path: patches/order-service-nodeport.yaml
+  - path: patches/payment-service-nodeport.yaml
