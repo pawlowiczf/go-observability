@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    app: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: order-service
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVICE_NAME
+              value: "order-service"
+            - name: SERVICE_PORT
+              value: "8080"
+            - name: OTEL_ENDPOINT
+              value: "otel-collector:4318"
+            - name: INVENTORY_BASE_URL
+              value: "http://inventory-service:8080"
+            - name: PAYMENT_BASE_URL
+              value: "http://payment-service:8080"
