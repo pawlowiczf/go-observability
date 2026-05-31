@@ -18,3 +18,6 @@ images:
 patches:
   - path: patches/grafana-nodeport.yaml
   - path: patches/jaeger-nodeport.yaml
+  - path: patches/inventory-service-nodeport.yaml
+  - path: patches/order-service-nodeport.yaml
+  - path: patches/payment-service-nodeport.yaml

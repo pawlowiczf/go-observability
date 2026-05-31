@@ -37,5 +37,17 @@ k8s-status:
 	kubectl get all -n observability
 
 k8s-urls:
-	@echo "Grafana: http://$(shell minikube ip):30300"
-	@echo "Jaeger:  http://$(shell minikube ip):30686"
+	@echo "Grafana:           http://localhost:3000"
+	@echo "Jaeger:            http://localhost:16686"
+	@echo "inventory-service: http://localhost:8001"
+	@echo "order-service:     http://localhost:8002"
+	@echo "payment-service:   http://localhost:8003"
+
+k8s-forward:
+	kubectl port-forward -n observability svc/grafana 3000:3000 & \
+	kubectl port-forward -n observability svc/jaeger 16686:16686 & \
+	kubectl port-forward -n observability svc/inventory-service 8001:8080 & \
+	kubectl port-forward -n observability svc/order-service 8002:8080 & \
+	kubectl port-forward -n observability svc/payment-service 8003:8080
+
+# kubectl port-forward -n observability svc/order-service 8002:8080
